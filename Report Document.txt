@@ -1,0 +1,78 @@
+CS21002 – Introduction to Artificial Intelligence and Machine Learning
+
+Team members: 
+
+•	Ezio Hasibuan / 2675878
+•	Calum Gillespie / 2677617
+•	Franciszek Rembiasz / 2688766
+•	Nick Garcia / 2636962
+
+Word count: <document word count – 2250 words +/- 10%>
+
+AI Project Report: Poker Card Counter
+
+Introduction
+
+<Brief description of your project proposal in a couple sentences.>
+
+Poker is a well-known game used to pass the time and bet using real money. Our goal is to make an AI agent that can reliably beat it. Normally gambling games are luck based (to make the “house” always win), but poker has a certain degree of strategy and skill that can push your odds ever slightly in your favour. 
+
+60 words
+
+Problem
+
+<Describe the problem, in terms of its real world application, and justify it considering also its relation to AI history. Explain any adjustments you made to scope. Note anything that is above and beyond the suggested area of application.>
+
+Poker can be a high-stakes game, and with high stakes comes high rewards. If you were able to consistently beat it, it could be used as a source of income (until the casino gets suspicious of your high earnings and bans you from the place anyways).
+
+This is much easier said than done, there is still a large luck element to the game and you need to calculate the odds of each choice quickly and with limited information. While this is tricky for a human, an artificial intelligence agent might be more suited for this mathematical and probability task.
+
+It’s not the first time AI has been used to win strategy games, one notable example would be the relationship between AI and Chess, going as far back as the 1900’s
+
+In 1912, famous Spanish inventor Leonardo Torres Quevedo created an automaton that would play endgame Chess using an algorithm. With straight-forward logic, it would do moves that would eventually guarantee a checkmate. 
+
+It was even able to detect illegal moves and comically refused to play if 3 illegal moves were made. Not the fastest or best, but it worked, and unlike other “robots” during that time, there was no human secretly operating it under the table, making it the first real AI Chess player.
+
+Any AI history conversation should also mention Alan Turing. In 1948 they made a program called “Turochamp”, the first program meant to win a full game of Chess. It was not meant to be extremely smart, doing basic decisions, but the computers at the time could not handle the program due to its complexity.
+
+Chess is a game with a hypothetical best move every game with no luck. So how can AI be used for Poker? Well, it should not be expected to win every game, it just has to win more than 50% of its games and try not to go bankrupt, this would make it profitable and statistically better than humans.
+
+TBA
+
+
+321 words 
+
+Model and Data
+
+<Provide a formal definition of the problem as considered in the module. Describe the data you used, and how you obtained and manipulated it. Note anything that is above and beyond related to data generation or space of the problem.>
+
+
+
+Method and Implementation
+
+<Describe how you solved the problem in terms of the two selected methods (one search strategy and one deep or machine learning approach). Include any relevant implementation details and challenges, and reference pre-existing code or any libraries you used. Note anything that is above and beyond what was covered in the module.>
+
+For our search strategy, we did not consider doing an Uninformed search strategy (Breath-first Search, Uniform-cost Search). 
+
+Search strategy used: A*
+
+Results and Comparison
+
+<Describe and compare the solutions you obtained from each method with your experiments in terms of the problem definition, and what they mean in the real world. Include an analysis of the performance (in terms of completeness, optimality, and running time) of the two techniques you have used. Reflect on the limitations of your work identified in experiments.>
+
+Conclusion
+
+<Summarise your work and what you learn from the project in a few sentences. Provide opportunities for improvement and describe briefly how these could be carried out.>
+
+References
+<List all resources used in your work. Not to be included in word-count.>
+
+
+Agenda 
+
+- pick search-based algorithm and start implementation 
+- start python game engine creation and heuristics modeling 
+- start designing inputs and outputs to agent from game engine 
+
+Playsers {m,i/f, 2 cards, remaining money}
+game {blinds, dealer, current players, current raise rate}
