@@ -105,6 +105,33 @@ def hand_name(score):
     return HAND_NAMES[score[0]]
 
 
+def split_pots(totals, folded, scores, dealer):
+    """Chips won per seat; `scores` need only be comparable and is read for showdown seats."""
+    n = len(totals)
+    winnings = [0] * n
+    prev = 0
+    carry = 0
+    for level in sorted({t for t in totals if t}):
+        contributors = [s for s in range(n) if totals[s] >= level]
+        pot = carry + (level - prev) * len(contributors)
+        prev = level
+        eligible = [s for s in contributors if not folded[s]]
+        if not eligible:
+            carry = pot
+            continue
+        carry = 0
+        if len(eligible) == 1:
+            winners = eligible
+        else:
+            best = max(scores[s] for s in eligible)
+            winners = [s for s in eligible if scores[s] == best]
+        winners.sort(key=lambda s: (s - dealer - 1) % n)  # odd chips go left of the dealer
+        share, odd = divmod(pot, len(winners))
+        for k, s in enumerate(winners):
+            winnings[s] += share + (1 if k < odd else 0)
+    return winnings
+
+
 # ---------------------------------------------------------------- agent interface
 
 @dataclass(frozen=True)
@@ -435,7 +462,6 @@ class PokerGame:
         return result
 
     def _settle(self):
-        n = len(self.players)
         live = [p for p in self.players if not p.folded]
         scores = {}
         showdown = {}
@@ -447,27 +473,8 @@ class PokerGame:
                 self._say(f"  {p.name}: {fmt_cards(p.hole)} -> {showdown[p.seat]['hand']}")
 
         pot_total = self.pot
-        winnings = {p.seat: 0 for p in self.players}
-        prev = 0
-        carry = 0
-        for level in sorted({p.total_bet for p in self.players if p.total_bet}):
-            contributors = [p for p in self.players if p.total_bet >= level]
-            pot = carry + (level - prev) * len(contributors)
-            prev = level
-            eligible = [p for p in contributors if not p.folded]
-            if not eligible:
-                carry = pot
-                continue
-            carry = 0
-            if len(eligible) == 1:
-                winners = eligible
-            else:
-                best = max(scores[p.seat] for p in eligible)
-                winners = [p for p in eligible if scores[p.seat] == best]
-            winners.sort(key=lambda p: (p.seat - self.dealer - 1) % n)  # odd chips go left of the dealer
-            share, odd = divmod(pot, len(winners))
-            for k, p in enumerate(winners):
-                winnings[p.seat] += share + (1 if k < odd else 0)
+        winnings = dict(enumerate(split_pots(
+            [p.total_bet for p in self.players], [p.folded for p in self.players], scores, self.dealer)))
 
         for p in self.players:
             p.stack += winnings[p.seat]
