@@ -54,7 +54,7 @@ Method and Implementation
 
 For our search strategy, we did not consider doing an Uninformed search strategy (Breath-first Search, Uniform-cost Search). 
 
-Search strategy used: A*
+Search strategy used: MCTS
 
 Results and Comparison
 
