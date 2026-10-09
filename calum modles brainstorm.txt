@@ -1,0 +1,5 @@
+			input 								    		  												output
+pre flop	card 1, card 2, player blind, check or call amount, investment, potential hand value, stack	call/check, fold, raise (quant)
+flop 		"" flop card 1-3																			""
+turn 		"" turn card																				""
+river		"" river card																				""
