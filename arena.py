@@ -1,22 +1,49 @@
 """Seat-rotated tournaments on shared deals, so luck of the cards cancels out.
 
-Evaluate:        python arena.py --deals 30 --iterations 200
-Play vs ISMCTS:  python arena.py --play
+Evaluate:        python arena.py --deals 30 --iterations 200 --players 4
+Choose agents:   python arena.py --lineup ismcts,ismcts,random
+Play vs agents:  python arena.py --play --lineup ismcts,random   (you plus the listed opponents)
+
+Agent kinds: ismcts, random (RandomAgent), call (check/call-down).
 """
 import argparse
 import itertools
 import math
 import random
 import statistics
+from collections import Counter
 
 from poker import CallAgent, Deck, HumanAgent, PokerGame, RandomAgent
 from ismcts import ISMCTSAgent
 
+AGENT_KINDS = {
+    "ismcts": ("ISMCTS", lambda name, args, rng: ISMCTSAgent(name, args.iterations, args.exploration, rng=rng)),
+    "random": ("Random", lambda name, args, rng: RandomAgent(name, rng)),
+    "call": ("Call", lambda name, args, rng: CallAgent(name)),
+}
+
+
+def build_lineup(kinds, args, rng):
+    """Creates one agent per kind; repeated kinds are numbered so every name is unique."""
+    totals = Counter(kinds)
+    seen = Counter()
+    agents = []
+    for kind in kinds:
+        label, factory = AGENT_KINDS[kind]
+        seen[kind] += 1
+        name = f"{label} {seen[kind]}" if totals[kind] > 1 else label
+        agents.append(factory(name, args, random.Random(rng.random())))
+    return agents
+
 
 def run_arena(agents, deals=50, stack=1000, small_blind=5, big_blind=10, seed=0):
-    """Plays every seat order of each deal once; returns {name: per-deal average result in big blinds per hand}."""
+    """Plays each deal once per seat order; returns {name: per-deal average result in big blinds per hand}."""
     rng = random.Random(seed)
-    orders = list(itertools.permutations(agents))
+    agents = list(agents)
+    if len(agents) <= 4:
+        orders = list(itertools.permutations(agents))
+    else:  # n! orders get too slow, so only rotate
+        orders = [agents[k:] + agents[:k] for k in range(len(agents))]
     results = {a.name: [] for a in agents}
     for _ in range(deals):
         cards = Deck(rng).cards
@@ -47,19 +74,28 @@ def main():
     parser.add_argument("--exploration", type=float, default=0.7)
     parser.add_argument("--stack", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--play", action="store_true", help="play against two ISMCTS bots")
+    parser.add_argument("--lineup", help="comma-separated agent kinds, e.g. ismcts,ismcts,random")
+    parser.add_argument("--players", type=int, default=3, choices=range(2, 7),
+                        help="total seats when --lineup is not given")
+    parser.add_argument("--play", action="store_true", help="play against the agents (you take an extra seat)")
     args = parser.parse_args()
 
-    rng = random.Random(args.seed)
+    if args.lineup:
+        kinds = [k.strip().lower() for k in args.lineup.split(",") if k.strip()]
+        unknown = [k for k in kinds if k not in AGENT_KINDS]
+        if unknown:
+            parser.error(f"unknown agent {unknown[0]!r}; choose from {', '.join(AGENT_KINDS)}")
+    elif args.play:
+        kinds = ["ismcts"] * (args.players - 1)
+    else:
+        kinds = ["ismcts"] + [("random", "call")[i % 2] for i in range(args.players - 1)]
+    if not 2 <= len(kinds) + args.play <= 6:
+        parser.error("need 2 to 6 players in total")
 
-    def ismcts(name):
-        return ISMCTSAgent(name, args.iterations, args.exploration, rng=random.Random(rng.random()))
-
+    agents = build_lineup(kinds, args, random.Random(args.seed))
     if args.play:
-        agents = [HumanAgent("You"), ismcts("ISMCTS 1"), ismcts("ISMCTS 2")]
-        PokerGame(agents, args.stack, seed=args.seed).play_match()
+        PokerGame([HumanAgent("You")] + agents, args.stack, seed=args.seed).play_match()
         return
-    agents = [ismcts("ISMCTS"), RandomAgent("Random", random.Random(rng.random())), CallAgent("Call")]
     report(run_arena(agents, args.deals, args.stack, seed=args.seed))
 
 
