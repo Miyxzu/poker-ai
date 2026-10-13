@@ -1,9 +1,12 @@
 """Tests for the simulator and the ISMCTS agent: python -m unittest test_ismcts -v"""
 import random
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 
 from poker import (CALL, FOLD, RAISE, Card, CallAgent, Observation, PokerGame, RandomAgent,
                    evaluate_hand, parse_cards)
+from arena import report, run_arena
 from ismcts import ISMCTSAgent
 from sim import SimState, card_id, score_cards
 
@@ -100,6 +103,29 @@ class SimStateTests(unittest.TestCase):
                     state.hole[seat] = (drawn.pop(), drawn.pop())
             state.board = tuple(drawn[:5])
             self.assertEqual(sum(state.passive_payoffs()), 0)
+
+
+class ArenaReportTests(unittest.TestCase):
+    def test_aggregates_and_reports_agent_statistics(self):
+        results = run_arena([CallAgent("A"), CallAgent("B")], deals=2, seed=4)
+
+        self.assertEqual(set(results), {"A", "B"})
+        for name in results:
+            stats = results.agent_stats[name]
+            self.assertEqual(stats["hands"], 4)
+            self.assertEqual(stats["vpip"], 2)
+            self.assertEqual(stats["pfr"], 0)
+            self.assertEqual(stats["showdowns"], 4)
+            self.assertEqual(sum(count for _, count in results.position_stats[name].values()), 4)
+
+        output = StringIO()
+        with redirect_stdout(output):
+            report(results)
+        text = output.getvalue()
+        self.assertIn("Performance", text)
+        self.assertIn("Action frequency by street", text)
+        self.assertIn("Results by position", text)
+        self.assertIn("BTN/SB", text)
 
 
 class ISMCTSAgentTests(unittest.TestCase):
