@@ -4,19 +4,27 @@ Evaluate:        python arena.py --deals 30 --iterations 200 --players 4
 Choose agents:   python arena.py --lineup ismcts,ismcts,random
 Play vs agents:  python arena.py --play --lineup ismcts,random   (you plus the listed opponents)
 
-Agent kinds: ismcts, random (RandomAgent), call (check/call-down).
+Agent kinds: ismcts, qlearn (table from --qtable), random (RandomAgent), call (check/call-down).
 """
 import argparse
+import functools
 import itertools
 import math
+import os
 import random
 import statistics
+# import torch
+# import numpy as np
 from collections import Counter
 
 from poker import CALL, CHECK, FOLD, RAISE, CallAgent, Deck, HumanAgent, PokerGame, RandomAgent
 from ismcts import ISMCTSAgent
+from qlearn import QAgent, QTable
+
+load_qtable = functools.lru_cache(maxsize=None)(QTable.load)
 
 AGENT_KINDS = {
+    "qlearn": ("QLearn", lambda name, args, rng: QAgent(name, load_qtable(args.qtable), rng=rng)),
     "ismcts": ("ISMCTS", lambda name, args, rng: ISMCTSAgent(name, args.iterations, args.exploration, rng=rng)),
     "random": ("Random", lambda name, args, rng: RandomAgent(name, rng)),
     "call": ("Call", lambda name, args, rng: CallAgent(name)),
@@ -155,15 +163,16 @@ def report(results):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="ISMCTS vs baseline agents")
-    parser.add_argument("--deals", type=int, default=30)
+    parser = argparse.ArgumentParser(description="Run a poker arena with various agents")
+    parser.add_argument("--deals", type=int, default=30, help="number of deals to play")
     parser.add_argument("--iterations", type=int, default=200, help="ISMCTS iterations per decision")
     parser.add_argument("--exploration", type=float, default=0.7)
-    parser.add_argument("--stack", type=int, default=1000)
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--lineup", help="comma-separated agent kinds, e.g. ismcts,ismcts,random")
-    parser.add_argument("--players", type=int, default=3, choices=range(2, 7),
-                        help="total seats when --lineup is not given")
+    parser.add_argument("--qtable", default="qtable.json", help="trained table for qlearn agents")
+    parser.add_argument("--stack", type=int, default=1000, help="starting stack for each player")
+    parser.add_argument("--seed", type=int, help="random seed (default: random; the seed used is printed)")
+    parser.add_argument("--lineup", help="comma-separated agent kinds, e.g. ismcts,qlearn,random")
+    parser.add_argument("--players", type=int, choices=range(2, 7),
+                        help="total seats when --lineup is not given (default 4, or 3 with --play)")
     parser.add_argument("--play", action="store_true", help="play against the agents (you take an extra seat)")
     args = parser.parse_args()
 
@@ -173,12 +182,24 @@ def main():
         if unknown:
             parser.error(f"unknown agent {unknown[0]!r}; choose from {', '.join(AGENT_KINDS)}")
     elif args.play:
-        kinds = ["ismcts"] * (args.players - 1)
+        kinds = ["ismcts", "qlearn"] * ((args.players or 2) - 1)
     else:
-        kinds = ["ismcts"] + [("random", "call")[i % 2] for i in range(args.players - 1)]
+        kinds = ["ismcts", "qlearn"] + [("random", "call")[i % 2] for i in range((args.players or 4) - 2)]
     if not 2 <= len(kinds) + args.play <= 6:
         parser.error("need 2 to 6 players in total")
+    if "qlearn" in kinds and not os.path.exists(args.qtable):
+        parser.error(f"{args.qtable} not found; train it with: python qlearn.py --out {args.qtable}")
 
+    if args.seed is None:
+        args.seed = random.randrange(2 ** 32)
+    # else: # This section is only needed if wanted to use fixed seed
+    #     random.seed(args.seed)
+    #     os.environ["PYTHONHASHSEED"] = str(args.seed)
+        # np.random.seed(args.seed)
+        # torch.manual_seed(args.seed)
+        # if torch.cuda.is_available():
+        #     torch.cuda.manual_seed_all(args.seed)
+    print(f"Seed: {args.seed}")
     agents = build_lineup(kinds, args, random.Random(args.seed))
     if args.play:
         PokerGame([HumanAgent("You")] + agents, args.stack, seed=args.seed).play_match()
