@@ -1,6 +1,6 @@
 # Repo for Poker Proj
 
-``poker.py`` contains the engine for the No-limit Hold'em Poker used for this case study
+``poker.py`` contains the engine for the No-limit Hold'em Poker used for this case study. To play against the different agents, use ``poker arena.py --play``.
 
 ## Arena.py
 
@@ -25,7 +25,7 @@ Main arguments to use, see ``-h`` for the rest
 
 ## Extra Info
 
-### Tabular Monte Carlo Q-Learning
+### Tabular Monte Carlo Control
 
 Train Q-Learning agent using ``python qlearn.py --hands 200000 --out qtable.json``  (--minutes N to cap, --resume to continue, --opponents random,call,ismcts)
 

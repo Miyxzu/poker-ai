@@ -25,7 +25,9 @@ STREET_INDEX = {"preflop": 0, "flop": 1, "turn": 2, "river": 3}
 RATIO_EDGES = (0.5, 0.75, 0.9, 1.05, 1.2, 1.4, 1.6, 1.8, 2.2, 3.0)  # equity / fair share
 ODDS_EDGES = (0.15, 0.25, 0.33, 0.45)  # to_call / (pot + to_call)
 COMMIT_EDGES = (0.1, 0.35)  # share of the hand's chips already invested
+DEPTH_EDGES = (0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0)
 PREFLOP_SAMPLES = 400
+QTABLE_VERSION = 2
 
 _preflop_equity = {}
 
@@ -68,7 +70,7 @@ class QTable:
         return row
 
     def save(self, path):
-        data = {"actions": ACTIONS, "hands": self.hands,
+        data = {"version": QTABLE_VERSION, "actions": ACTIONS, "hands": self.hands,
                 "states": {",".join(map(str, k)): v for k, v in self.values.items()}}
         tmp = path + ".tmp"
         with open(tmp, "w") as f:
@@ -79,6 +81,8 @@ class QTable:
     def load(cls, path):
         with open(path) as f:
             data = json.load(f)
+        if data.get("version") != QTABLE_VERSION:
+            raise ValueError(f"{path} uses an old Q-table format; retrain it with python qlearn.py")
         if tuple(data["actions"]) != ACTIONS:
             raise ValueError(f"{path} was trained with a different action set")
         table = cls()
@@ -116,9 +120,23 @@ class QAgent(Agent):
         ratio = equity * (opponents + 1)
         required = obs.to_call / (obs.pot + obs.to_call) if obs.to_call else 0.0
         invested = obs.players[obs.seat]["total_bet"]
+        live_seats = [i for i, player in enumerate(obs.players) if not player["folded"]]
+        position_order = [((obs.dealer + offset) % len(obs.players)) for offset in range(len(obs.players))
+                          if not obs.players[(obs.dealer + offset) % len(obs.players)]["folded"]]
+        position = position_order.index(obs.seat)
+        position = min(position, 5)
+        other_stacks = [obs.players[i]["stack"] for i in live_seats if i != obs.seat]
+        effective_stack = min(obs.stack, max(other_stacks)) if other_stacks else obs.stack
+        depth = effective_stack / max(obs.pot, obs.big_blind)
+        street_raises = min(2, sum(h["street"] == obs.street and h["action"] == RAISE
+                       for h in obs.history))
+        preflop_raiser = next((h["seat"] for h in reversed(obs.history)
+                       if h["street"] == "preflop" and h["action"] == RAISE), None)
         key = (STREET_INDEX[obs.street], bucket(ratio, RATIO_EDGES), min(opponents, 3) - 1,
                bucket(required, ODDS_EDGES) + 1 if obs.to_call else 0,
-               bucket(invested / (invested + obs.stack) if invested + obs.stack else 0.0, COMMIT_EDGES))
+               bucket(invested / (invested + obs.stack) if invested + obs.stack else 0.0, COMMIT_EDGES),
+                             position, bucket(depth, DEPTH_EDGES), street_raises,
+                             int(preflop_raiser == obs.seat))
         return key, equity
 
     @staticmethod
@@ -127,7 +145,13 @@ class QAgent(Agent):
         if obs.to_call > 0:
             legal.append(FOLD_A)
         if RAISE in obs.legal_actions:
-            legal += [HALF_A, POT_A, ALLIN_A]
+            seen = set()
+            for choice in (ALLIN_A, HALF_A, POT_A):
+                action = QAgent._to_action(obs, choice)
+                action_key = (action.kind, action.amount)
+                if action_key not in seen:
+                    legal.append(choice)
+                    seen.add(action_key)
         return legal
 
     def act(self, obs):
@@ -145,6 +169,9 @@ class QAgent(Agent):
 
     def _greedy(self, key, legal, obs, equity):
         row = self.table.values.get(key)
+        untried = [a for a in legal if row is None or row[1][a] == 0]
+        if self.learn and untried:
+            return self.rng.choice(untried)
         tried = [a for a in legal if row and row[1][a] > 0]
         if tried:
             return max(tried, key=lambda a: row[0][a])

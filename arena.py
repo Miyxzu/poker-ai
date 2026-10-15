@@ -8,6 +8,7 @@ Agent kinds: ismcts, qlearn (table from --qtable), random (RandomAgent), call (c
 """
 import argparse
 import functools
+import importlib
 import itertools
 import math
 import os
@@ -23,8 +24,16 @@ from qlearn import QAgent, QTable
 
 load_qtable = functools.lru_cache(maxsize=None)(QTable.load)
 
+
+def _reinforce_agent(name, args, rng):
+    module = importlib.import_module("reinforce")
+    policy = module.ReinforcePolicy.load(args.policy)
+    return module.ReinforceAgent(name, policy, rng=rng)
+
+
 AGENT_KINDS = {
     "qlearn": ("QLearn", lambda name, args, rng: QAgent(name, load_qtable(args.qtable), rng=rng)),
+    "reinforce": ("REINFORCE", _reinforce_agent),
     "ismcts": ("ISMCTS", lambda name, args, rng: ISMCTSAgent(name, args.iterations, args.exploration, rng=rng)),
     "random": ("Random", lambda name, args, rng: RandomAgent(name, rng)),
     "call": ("Call", lambda name, args, rng: CallAgent(name)),
@@ -168,6 +177,7 @@ def main():
     parser.add_argument("--iterations", type=int, default=200, help="ISMCTS iterations per decision")
     parser.add_argument("--exploration", type=float, default=0.7)
     parser.add_argument("--qtable", default="qtable.json", help="trained table for qlearn agents")
+    parser.add_argument("--policy", default="reinforce.pt", help="trained policy for reinforce agents")
     parser.add_argument("--stack", type=int, default=1000, help="starting stack for each player")
     parser.add_argument("--seed", type=int, help="random seed (default: random; the seed used is printed)")
     parser.add_argument("--lineup", help="comma-separated agent kinds, e.g. ismcts,qlearn,random")
@@ -189,6 +199,8 @@ def main():
         parser.error("need 2 to 6 players in total")
     if "qlearn" in kinds and not os.path.exists(args.qtable):
         parser.error(f"{args.qtable} not found; train it with: python qlearn.py --out {args.qtable}")
+    if "reinforce" in kinds and not os.path.exists(args.policy):
+        parser.error(f"{args.policy} not found; train it with: python reinforce.py --out {args.policy}")
 
     if args.seed is None:
         args.seed = random.randrange(2 ** 32)
