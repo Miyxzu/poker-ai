@@ -230,7 +230,7 @@ class HumanAgent(Agent):
         out = self.output_fn
         out(f"\n[{obs.street.upper()}] Board: {fmt_cards(obs.community_cards) or '-'}   Pot: {obs.pot}")
         out(f"Your hand: {fmt_cards(obs.hole_cards)}   Stack: {obs.stack}   To call: {obs.to_call}")
-        menu = ["f=fold", "c=check" if CHECK in obs.legal_actions else f"c=call {obs.to_call}"]
+        menu = ["q=quit", "f=fold", "c=check" if CHECK in obs.legal_actions else f"c=call {obs.to_call}"]
         if RAISE in obs.legal_actions:
             menu.append(f"r <to>=raise ({obs.min_raise_to}-{obs.max_raise_to})")
             menu.append("a=all-in")
@@ -241,6 +241,8 @@ class HumanAgent(Agent):
             cmd = parts[0]
             if cmd in ("f", "fold"):
                 return Action(FOLD)
+            if cmd in ("q", "quit"):
+                raise KeyboardInterrupt
             if cmd in ("c", "call", "check", "k"):
                 return _passive(obs)
             if RAISE in obs.legal_actions:
